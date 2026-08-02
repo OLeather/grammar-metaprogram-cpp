@@ -66,13 +66,13 @@ struct FloatKeyword : Keyword {
 
 struct Identifier : ASTNode {
   std::string name;
-  Identifier(const std::string& input) : name(input) {};
+  Identifier(const std::string &input) : name(input) {};
 };
 
 struct Number : ASTNode {
   number val;
-  Number(const std::string& input) : val(NumberFromString(input)){
-    std::cout <<" Calling number converter" << std::endl;
+  Number(const std::string &input) : val(NumberFromString(input)) {
+    std::cout << " Calling number converter" << std::endl;
   };
 };
 
@@ -160,13 +160,10 @@ struct FactorR : Or<
   NumberR>
 {};
 
-
-// TODO 
-
 // clang-format on
 
-
-
+// TODO (owen): It would be nice to separate rules from nodes. So, start with
+// rules. Then, build transformers that transform rules into nodes.
 
 /*
 # Expr handles + and - via right-recursion
@@ -228,22 +225,28 @@ Factor  <- '(' Expr ')'
 //             .op = op};
 //   };
 
-//   Expr operator()(const std::variant_alternative_t<1, ExprR::ReturnType> &v) {
+//   Expr operator()(const std::variant_alternative_t<1, ExprR::ReturnType> &v)
+//   {
 
 //   };
-//   Expr operator()(const std::variant_alternative_t<2, ExprR::ReturnType> &v) {
+//   Expr operator()(const std::variant_alternative_t<2, ExprR::ReturnType> &v)
+//   {
 
 //   };
-//   Expr operator()(const std::variant_alternative_t<0, TermR::ReturnType> &v) {
+//   Expr operator()(const std::variant_alternative_t<0, TermR::ReturnType> &v)
+//   {
 
 //   };
-//   Expr operator()(const std::variant_alternative_t<1, TermR::ReturnType> &v) {
+//   Expr operator()(const std::variant_alternative_t<1, TermR::ReturnType> &v)
+//   {
 
 //   };
-//   Expr operator()(const std::variant_alternative_t<0, FactorR::ReturnType> &v) {
+//   Expr operator()(const std::variant_alternative_t<0, FactorR::ReturnType>
+//   &v) {
 
 //   };
-//   Expr operator()(const std::variant_alternative_t<1, FactorR::ReturnType> &v) {
+//   Expr operator()(const std::variant_alternative_t<1, FactorR::ReturnType>
+//   &v) {
 
 //   };
 // };
