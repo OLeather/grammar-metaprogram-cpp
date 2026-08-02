@@ -1,0 +1,29 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "syntax_parser",
+    hdrs = ["syntax_parser.h"],
+    deps = [
+        "//source/grammar:grammar",
+    ]
+)
+
+cc_library(
+    name = "number",
+    hdrs = ["number.h"],
+    srcs = ["number.cpp"],
+    deps = [
+    ]
+)
+
+cc_binary(
+    name = "main",
+    srcs = ["main.cpp"],
+    deps = [
+        ":number",
+        ":syntax_parser",
+    ]
+)
