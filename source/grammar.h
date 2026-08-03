@@ -208,35 +208,38 @@ struct EndOfFile {
 Conditionals
 */
 
-// template <typename Condition>
-// struct Not{
-//   using ReturnType = Condition::ReturnType;
+// Implemented Not (negative look‑ahead) – succeeds only if Condition does **not** match.
+// It never consumes input and returns a monostate on success.
 
-//   static std::optional<Result<ReturnType>> Match(Context ctx, const bool
-//   consume) {
-//     if (auto next = match_rule<Condition>(ctx, consume)) {
-//       return std::nullopt;
-//     }
+template <typename Condition>
+struct Not {
+  using ReturnType = std::monostate;
 
-//     return Result<ReturnType>{ctx, nullptr};
-//   }
-// };
+  static std::optional<Result<ReturnType>> Match(Context ctx, const bool /*consume*/) {
+    // Perform a look‑ahead without consuming input.
+    if (match_rule<Condition>(ctx, false)) {
+      return std::nullopt; // Condition matched → Not fails.
+    }
+    // Condition did not match – succeed without consuming.
+    return Result<ReturnType>{.ctx = ctx, .value = std::monostate{}};
+  }
+};
 
-// template <typename Condition, typename Action>
-// struct Conditional {
-//   using ReturnType = Condition::ReturnType;
+// Conditional – run Action only when Condition matches (look‑ahead).
+// Condition is tested without consuming input; if it succeeds, Action is run with the
+// original context (or the context after a zero‑width condition, which is the same).
 
-//   static std::optional<Result<ReturnType>> Match(Context ctx, const bool
-//   consume) {
-//     constexpr auto kConsume{true};
-//     constexpr auto kDontConsume{false};
+template <typename Condition, typename Action>
+struct Conditional {
+  using ReturnType = typename Action::ReturnType;
 
-//     if (match_rule<Condition>(ctx, kDontConsume)) {
-//       return match_rule<Action>(ctx, kConsume);
-//     }
-
-//     return std::nullopt;
-//   }
-// };
-
+  static std::optional<Result<ReturnType>> Match(Context ctx, const bool consume) {
+    // Look ahead for the condition without consuming.
+    if (auto cond_res = match_rule<Condition>(ctx, false)) {
+      // Condition succeeded – now execute the action. Use the provided consume flag.
+      return match_rule<Action>(cond_res->ctx, consume);
+    }
+    return std::nullopt;
+  }
+};
 } // namespace language
