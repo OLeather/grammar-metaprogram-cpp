@@ -70,7 +70,7 @@ template <typename... Definitions> struct Or;
 
 template <> struct Or<> {
   using ReturnType = std::monostate;
-  static std::optional<Result<ReturnType>> Match(Context, const bool = true) {
+  static std::optional<Result<ReturnType>> Match(Context, const bool) {
     return std::nullopt;
   }
 };
@@ -104,7 +104,8 @@ template <typename Head, typename... Tail> struct Or<Head, Tail...> {
 /*
 Converter
 */
-template <typename LayoutT, typename ConverterT, typename ReturnT> struct Converter {
+template <typename LayoutT, typename ConverterT, typename ReturnT>
+struct Converter {
   using ReturnType = ReturnT;
 
   static std::optional<Result<ReturnType>> Match(Context ctx,
@@ -131,6 +132,9 @@ template <> struct Sequence<> {
     return Result<ReturnType>{ctx, {}};
   }
 };
+
+template <typename T>
+concept HasFailOkay = requires { typename T::FailOkay; };
 
 template <typename Head, typename... Tail> struct Sequence<Head, Tail...> {
   using ReturnType = decltype(std::tuple_cat(
@@ -177,16 +181,20 @@ template <typename Definition> struct Repeated {
   }
 };
 
-
 /*
 Eval (Recursion Wrapper)
 */
+
+// TODO (owen): Figure out the implications of returning a monostate here. There
+// is ideally some better way to wrap the return type in some pointer to allow
+// recursive definitions.
 template <typename Rule> struct Eval {
-  using ReturnType = typename Rule::ReturnType;
+  using ReturnType = std::monostate;
 
   static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool consume = true) {
-    return Rule::Match(ctx, consume);
+                                                 const bool consume) {
+    const auto res = Rule::Match(ctx, consume);
+    return Result{.ctx = res->ctx, .value = std::monostate()};
   }
 };
 
@@ -196,8 +204,8 @@ End Of File
 
 struct EndOfFile {
   using ReturnType = std::monostate;
-  static std::optional<Result<ReturnType>> Match(Context ctx, const bool
-  consume) {
+  static std::optional<Result<ReturnType>> Match(Context ctx,
+                                                 const bool consume) {
     if (ctx.input.empty())
       return Result<ReturnType>{.ctx = ctx, .value = std::monostate()};
     return std::nullopt;
@@ -208,35 +216,29 @@ struct EndOfFile {
 Conditionals
 */
 
-// Implemented Not (negative look‑ahead) – succeeds only if Condition does **not** match.
-// It never consumes input and returns a monostate on success.
-
-template <typename Condition>
-struct Not {
+template <typename Condition> struct Not {
   using ReturnType = std::monostate;
 
-  static std::optional<Result<ReturnType>> Match(Context ctx, const bool /*consume*/) {
-    // Perform a look‑ahead without consuming input.
+  static std::optional<Result<ReturnType>> Match(Context ctx,
+                                                 const bool /*consume*/) {
     if (match_rule<Condition>(ctx, false)) {
-      return std::nullopt; // Condition matched → Not fails.
+      return std::nullopt;
     }
-    // Condition did not match – succeed without consuming.
     return Result<ReturnType>{.ctx = ctx, .value = std::monostate{}};
   }
 };
 
-// Conditional – run Action only when Condition matches (look‑ahead).
-// Condition is tested without consuming input; if it succeeds, Action is run with the
-// original context (or the context after a zero‑width condition, which is the same).
-
-template <typename Condition, typename Action>
-struct Conditional {
+// TODO (owen): There is a bug with Conditional where if I have
+// Sequence<Conditional<...>, ...>, the Conditional will return nullopt and the
+// sequence exist. In reality, I want some way to indicate the conditional
+// failed but its okay because it doesnt have to succeed, and then we continue
+// with the rest of the sequence.
+template <typename Condition, typename Action> struct Conditional {
   using ReturnType = typename Action::ReturnType;
 
-  static std::optional<Result<ReturnType>> Match(Context ctx, const bool consume) {
-    // Look ahead for the condition without consuming.
+  static std::optional<Result<ReturnType>> Match(Context ctx,
+                                                 const bool consume) {
     if (auto cond_res = match_rule<Condition>(ctx, false)) {
-      // Condition succeeded – now execute the action. Use the provided consume flag.
       return match_rule<Action>(cond_res->ctx, consume);
     }
     return std::nullopt;
