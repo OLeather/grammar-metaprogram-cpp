@@ -4,14 +4,6 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "syntax_parser",
-    hdrs = ["syntax_parser.h"],
-    deps = [
-        "//source/grammar:grammar",
-    ]
-)
-
-cc_library(
     name = "number",
     hdrs = ["number.h"],
     srcs = ["number.cpp"],
@@ -19,11 +11,19 @@ cc_library(
     ]
 )
 
-cc_binary(
-    name = "main",
-    srcs = ["main.cpp"],
-    deps = [
-        ":number",
-        ":syntax_parser",
-    ]
+cc_library(
+    name = "result",
+    hdrs = ["result.h"],
+    deps = []
+)
+cc_library(
+    name = "regex_helpers",
+    hdrs = ["regex_helpers.h"],
+    deps = [":result",]
+)
+
+cc_library(
+    name = "grammar",
+    hdrs = ["grammar.h"],
+    deps = [":result",":regex_helpers"]
 )
