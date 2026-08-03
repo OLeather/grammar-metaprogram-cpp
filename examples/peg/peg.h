@@ -167,9 +167,5 @@ using Grammar = Sequence<
 
 // clang-format on
 
-/*
-Converters
-*/
-
 
 } // namespace peg
