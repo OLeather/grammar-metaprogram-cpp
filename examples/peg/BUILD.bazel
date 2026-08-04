@@ -12,5 +12,5 @@ cc_library(
 cc_binary(
     name = "main",
     srcs = ["main.cpp"],
-    deps = [":peg"],
+    deps = [":peg", "//examples/minimal_language:node_printer",],
 )

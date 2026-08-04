@@ -1,247 +1,219 @@
 #pragma once
-#include "source/regex_helpers.h"
-#include "source/result.h"
 
 #include <algorithm>
+#include <concepts>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <type_traits>
-#include <variant>
+#include <utility>
+#include <vector>
 
 namespace language {
 
-/*
-Core
-*/
-
-template <typename Rule> auto match_rule(Context ctx, const bool consume) {
-  return Rule::Match(ctx, consume);
-}
-
-/*
-Regex
-*/
-
-template <FixedString RegexStr> struct Regex {
-  using ReturnType = Regex<RegexStr>;
-  std::string value;
-
-  Regex() = default;
-  Regex(const std::string &input) : value(input) {};
-
-  static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool consume) {
-    static const std::regex regex{RegexStr.value};
-    return MatchRegex<ReturnType>(regex, ctx, consume);
-  }
-};
-
-/*
-Or
-*/
-
-template <typename T> struct is_variant : std::false_type {};
-template <typename... Ts>
-struct is_variant<std::variant<Ts...>> : std::true_type {};
+// Helper tag for compile-time overload dispatching
 template <typename T>
-inline constexpr bool is_variant_v = is_variant<std::decay_t<T>>::value;
-
-template <typename Target, typename Source>
-Target convert_to_return_type(Source &&src) {
-  if constexpr (std::is_same_v<std::decay_t<Target>, std::decay_t<Source>>) {
-    return std::forward<Source>(src);
-  } else if constexpr (is_variant_v<Source>) {
-    return std::visit(
-        [](auto &&val) -> Target {
-          return Target(std::forward<decltype(val)>(val));
-        },
-        std::forward<Source>(src));
-  } else {
-    return Target(std::forward<Source>(src));
-  }
-}
-
-template <typename... Definitions>
-using VariantOfReturnTypes = std::variant<typename Definitions::ReturnType...>;
-
-template <typename... Definitions> struct Or;
-
-template <> struct Or<> {
-  using ReturnType = std::monostate;
-  static std::optional<Result<ReturnType>> Match(Context, const bool) {
-    return std::nullopt;
-  }
+struct Tag {
+    using type = T;
 };
 
-template <typename Head, typename... Tail> struct Or<Head, Tail...> {
-  using ReturnType = std::conditional_t<
-      (std::is_same_v<typename Head::ReturnType, typename Tail::ReturnType> &&
-       ...),
-      typename Head::ReturnType, VariantOfReturnTypes<Head, Tail...>>;
-
-  static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool consume) {
-    if (auto next = Head::Match(ctx, consume)) {
-      return Result<ReturnType>{
-          .ctx = next->ctx,
-          .value = convert_to_return_type<ReturnType>(std::move(next->value))};
+// FixedString wrapper to allow string literals as non-type template parameters (C++20)
+template <std::size_t N>
+struct FixedString {
+    char value[N]{};
+    constexpr FixedString(const char (&str)[N]) {
+        std::copy_n(str, N, value);
     }
-
-    if constexpr (sizeof...(Tail) > 0) {
-      if (auto next = Or<Tail...>::Match(ctx, consume)) {
-        return Result<ReturnType>{.ctx = next->ctx,
-                                  .value = convert_to_return_type<ReturnType>(
-                                      std::move(next->value))};
-      }
+    constexpr operator std::string_view() const {
+        return {value, N - 1};
     }
-
-    return std::nullopt;
-  }
 };
 
-/*
-Converter
-*/
-template <typename LayoutT, typename ConverterT, typename ReturnT>
-struct Converter {
-  using ReturnType = ReturnT;
-
-  static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool consume) {
-    auto res = match_rule<LayoutT>(ctx, consume);
-    if (!res)
-      return std::nullopt;
-
-    return Result<ReturnType>{res->ctx, ConverterT{}(res->value)};
-  }
+// Generic parse tree node returned by all rules
+struct Node {
+    std::string_view rule_name;
+    std::string_view match_text;
+    std::vector<Node> children;
 };
 
-/*
-Sequence
-*/
-
-template <typename... Definitions> struct Sequence;
-
-template <> struct Sequence<> {
-  using ReturnType = std::tuple<>;
-
-  static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool consume) {
-    return Result<ReturnType>{ctx, {}};
-  }
+// Lightweight input cursor
+struct Context {
+    std::string_view input;
 };
 
 template <typename T>
-concept HasFailOkay = requires { typename T::FailOkay; };
-
-template <typename Head, typename... Tail> struct Sequence<Head, Tail...> {
-  using ReturnType = decltype(std::tuple_cat(
-      std::declval<std::tuple<typename Head::ReturnType>>(),
-      std::declval<typename Sequence<Tail...>::ReturnType>()));
-
-  static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool consume) {
-    auto head_res = match_rule<Head>(ctx, consume);
-    if (!head_res)
-      return std::nullopt;
-
-    auto tail_res = match_rule<Sequence<Tail...>>(head_res->ctx, consume);
-    if (!tail_res)
-      return std::nullopt;
-
-    return Result<ReturnType>{
-        tail_res->ctx,
-        std::tuple_cat(std::make_tuple(head_res->value), tail_res->value)};
-  }
+struct Result {
+    Context ctx;
+    T value;
 };
 
+// Core rule execution caller
+template <typename Rule>
+auto match_rule(Context ctx, const bool consume = true) {
+    return Rule::Match(ctx, consume);
+}
+
 /*
-Repeated
+Regex Rule
 */
+template <FixedString RegexStr>
+struct Regex {
+    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
+        static const std::regex re{RegexStr.value, std::regex::optimize};
+        std::cmatch match;
 
-template <typename Definition> struct Repeated;
-
-template <typename Definition> struct Repeated {
-  using ReturnType = std::vector<typename Definition::ReturnType>;
-
-  static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool consume) {
-    Context current = ctx;
-    ReturnType values;
-
-    while (auto next = match_rule<Definition>(current, consume)) {
-      if (next->ctx.input.size() == current.input.size())
-        break;
-      values.push_back(next->value);
-      current = next->ctx;
+        if (std::regex_search(ctx.input.data(), ctx.input.data() + ctx.input.size(),
+                              match, re, std::regex_constants::match_continuous)) {
+            std::size_t len = match.length(0);
+            std::string_view matched_slice = ctx.input.substr(0, len);
+            Context next_ctx = ctx;
+            if (consume) {
+                next_ctx.input.remove_prefix(len);
+            }
+            return Result<Node>{
+                .ctx = next_ctx,
+                .value = Node{
+                    .rule_name = "Regex",
+                    .match_text = matched_slice,
+                    .children = {}
+                }
+            };
+        }
+        return std::nullopt;
     }
-    return Result<ReturnType>{current, values};
-  }
 };
 
 /*
-Eval (Recursion Wrapper)
+Sequence Rule
 */
+template <typename... Rules>
+struct Sequence {
+    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
+        Context current = ctx;
+        std::vector<Node> children;
+        children.reserve(sizeof...(Rules));
 
-// TODO (owen): Figure out the implications of returning a monostate here. There
-// is ideally some better way to wrap the return type in some pointer to allow
-// recursive definitions.
-template <typename Rule> struct Eval {
-  using ReturnType = std::monostate;
+        bool matched = (... && [&]() {
+            auto res = match_rule<Rules>(current, consume);
+            if (!res) return false;
+            current = res->ctx;
+            children.push_back(std::move(res->value));
+            return true;
+        }());
 
-  static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool consume) {
-    const auto res = Rule::Match(ctx, consume);
-    return Result{.ctx = res->ctx, .value = std::monostate()};
-  }
+        if (!matched) return std::nullopt;
+
+        std::size_t len = ctx.input.size() - current.input.size();
+        return Result<Node>{
+            .ctx = current,
+            .value = Node{
+                .rule_name = "Sequence",
+                .match_text = ctx.input.substr(0, len),
+                .children = std::move(children)
+            }
+        };
+    }
+};
+
+/*
+Or (Choice) Rule
+*/
+template <typename... Rules>
+struct Or {
+    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
+        std::optional<Result<Node>> result = std::nullopt;
+
+        (... || [&]() {
+            if (auto res = match_rule<Rules>(ctx, consume)) {
+                result = std::move(res);
+                return true;
+            }
+            return false;
+        }());
+
+        return result;
+    }
+};
+
+/*
+Repeated Rule (Zero or More)
+*/
+template <typename Rule>
+struct Repeated {
+    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
+        Context current = ctx;
+        std::vector<Node> children;
+
+        while (auto res = match_rule<Rule>(current, consume)) {
+            if (res->ctx.input.size() == current.input.size()) break; // Prevent zero-width infinite loops
+            children.push_back(std::move(res->value));
+            current = res->ctx;
+        }
+
+        std::size_t len = ctx.input.size() - current.input.size();
+        return Result<Node>{
+            .ctx = current,
+            .value = Node{
+                .rule_name = "Repeated",
+                .match_text = ctx.input.substr(0, len),
+                .children = std::move(children)
+            }
+        };
+    }
+};
+
+/*
+Eval (Deferred Rule Evaluation for Recursion)
+*/
+template <typename Rule>
+struct Eval {
+    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
+        return Rule::Match(ctx, consume);
+    }
 };
 
 /*
 End Of File
 */
-
 struct EndOfFile {
-  using ReturnType = std::monostate;
-  static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool consume) {
-    if (ctx.input.empty())
-      return Result<ReturnType>{.ctx = ctx, .value = std::monostate()};
-    return std::nullopt;
-  }
+    static std::optional<Result<Node>> Match(Context ctx, const bool /*consume*/) {
+        if (ctx.input.empty()) {
+            return Result<Node>{
+                .ctx = ctx,
+                .value = Node{.rule_name = "EndOfFile", .match_text = {}, .children = {}}
+            };
+        }
+        return std::nullopt;
+    }
 };
 
 /*
-Conditionals
+Conditionals & Lookaheads
 */
-
-template <typename Condition> struct Not {
-  using ReturnType = std::monostate;
-
-  static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool /*consume*/) {
-    if (match_rule<Condition>(ctx, false)) {
-      return std::nullopt;
+template <typename Condition>
+struct Not {
+    static std::optional<Result<Node>> Match(Context ctx, const bool /*consume*/) {
+        if (match_rule<Condition>(ctx, false)) {
+            return std::nullopt;
+        }
+        return Result<Node>{
+            .ctx = ctx,
+            .value = Node{.rule_name = "Not", .match_text = {}, .children = {}}
+        };
     }
-    return Result<ReturnType>{.ctx = ctx, .value = std::monostate{}};
-  }
 };
 
-// TODO (owen): There is a bug with Conditional where if I have
-// Sequence<Conditional<...>, ...>, the Conditional will return nullopt and the
-// sequence exist. In reality, I want some way to indicate the conditional
-// failed but its okay because it doesnt have to succeed, and then we continue
-// with the rest of the sequence.
-template <typename Condition, typename Action> struct Conditional {
-  using ReturnType = typename Action::ReturnType;
-
-  static std::optional<Result<ReturnType>> Match(Context ctx,
-                                                 const bool consume) {
-    if (auto cond_res = match_rule<Condition>(ctx, false)) {
-      return match_rule<Action>(cond_res->ctx, consume);
+template <typename Condition, typename Action>
+struct Conditional {
+    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
+        if (auto cond_res = match_rule<Condition>(ctx, false)) {
+            return match_rule<Action>(cond_res->ctx, consume);
+        }
+        return std::nullopt;
     }
-    return std::nullopt;
-  }
 };
+
 } // namespace language
