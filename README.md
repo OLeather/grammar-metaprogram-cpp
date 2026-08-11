@@ -3,7 +3,7 @@
 ### Benefits of a metaprogramming API for PEG
 Rules define C++ types directly. This makes rule definition, matching, and binding all statically type checked. 
 ```cpp
- // Each Regex<"..."> is a unique type
+// Each Regex<"..."> is a unique type
 using Plus = Regex<"\\+">;
 using Number = Regex<"[0-9]+">;
 
