@@ -4,13 +4,17 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "peg",
-    hdrs = ["peg.h"],
-    deps = ["//source:grammar"]
+    name = "syntax",
+    hdrs = ["syntax.h"],
+    deps = ["//source:grammar_new",]
 )
-
+cc_library(
+    name = "bindings",
+    hdrs = ["bindings.h"],
+    deps = [":syntax",]
+)
 cc_binary(
     name = "main",
     srcs = ["main.cpp"],
-    deps = [":peg", "//examples/minimal_language:node_printer",],
+    deps = [":syntax", ":bindings",]
 )

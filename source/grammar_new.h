@@ -14,6 +14,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <iostream>
 
 namespace language {
 
@@ -42,9 +43,13 @@ template <typename TargetRule> struct Eval {
   using Target = TargetRule;
 };
 
-// struct EndOfFile {
-//   using IsEOF = void;
-// };
+template <typename Condition, typename Action> struct Conditional {
+  using IsConditional = void;
+};
+
+struct EndOfFile {
+  using IsEOF = void;
+};
 
 /*
 Return Types
@@ -73,9 +78,14 @@ template <typename Rule> struct ReturnTypeOf<Repeated<Rule>> {
   using type = std::vector<typename ReturnTypeOf<Rule>::type>;
 };
 
-// template <> struct ReturnTypeOf<EndOfFile> {
-//   using type = std::monostate;
-// };
+template <typename Condition, typename Action>
+struct ReturnTypeOf<Conditional<Condition, Action>> {
+  using type = std::optional<typename ReturnTypeOf<Action>::type>;
+};
+
+template <> struct ReturnTypeOf<EndOfFile> {
+  using type = std::monostate;
+};
 
 /*
 Matchers
@@ -87,9 +97,22 @@ template <FixedString Pattern> struct Matcher<Regex<Pattern>> {
   using ReturnType = typename ReturnTypeOf<Regex<Pattern>>::type;
 
   static std::optional<Result<ReturnType>> Match(Context ctx, bool consume) {
-    static const std::regex re{Pattern.value, std::regex::optimize};
-
+    static const std::regex re{"^(" + std::string(Pattern.value) + ")", std::regex::optimize};
     return MatchRegex<ReturnType>(re, ctx, consume);
+  }
+};
+
+template <typename Head> struct Matcher<Or<Head>> {
+  using VariantType = typename ReturnTypeOf<Or<Head>>::type;
+
+  static std::optional<Result<VariantType>> Match(Context ctx, bool consume) {
+    if (auto res = Matcher<Head>::Match(ctx, consume)) {
+      return Result<VariantType>{
+          .ctx = res->ctx,
+          .value = VariantType(std::move(res->value))
+      };
+    }
+    return std::nullopt;
   }
 };
 
@@ -177,14 +200,36 @@ template <typename Rule> struct Matcher<Repeated<Rule>> {
   }
 };
 
-// template <> struct Matcher<EndOfFile> {
-//   static std::optional<Result<std::monostate>> Match(Context ctx,
-//                                                      const bool consume) {
-//     if (ctx.input.empty()) {
-//       return Result<std::monostate>{.ctx = ctx, .value = std::monostate()};
-//     }
-//     return std::nullopt;
-//   }
-// }
+template <typename Condition, typename Action>
+struct Matcher<Conditional<Condition, Action>> {
+  using OptType = typename ReturnTypeOf<Conditional<Condition, Action>>::type;
+
+  static std::optional<Result<OptType>> Match(Context ctx, const bool consume) {
+    if (auto cond_res = Matcher<Condition>::Match(ctx, true)) {
+      if (auto action_res = Matcher<Action>::Match(ctx, consume)) {
+        return Result<OptType>{
+            .ctx = action_res->ctx,
+            .value = OptType(std::move(action_res->value))
+        };
+      }
+      return std::nullopt;
+    }
+
+    return Result<OptType>{
+        .ctx = ctx,
+        .value = std::nullopt
+    };
+  }
+};
+
+template <> struct Matcher<EndOfFile> {
+  static std::optional<Result<std::monostate>> Match(Context ctx, const bool consume) {
+    if (ctx.input.empty()) {
+      return Result<std::monostate>{.ctx = ctx, .value = std::monostate{}};
+    }
+    return std::nullopt;
+  }
+};
+
 
 } // namespace language
