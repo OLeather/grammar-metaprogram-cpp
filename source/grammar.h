@@ -11,6 +11,8 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <variant>
+#include <boost/variant/recursive_wrapper.hpp>
 
 namespace language {
 
@@ -32,12 +34,6 @@ struct FixedString {
     }
 };
 
-// Generic parse tree node returned by all rules
-struct Node {
-    std::string_view rule_name;
-    std::string_view match_text;
-    std::vector<Node> children;
-};
 
 // Lightweight input cursor
 struct Context {
@@ -61,7 +57,12 @@ Regex Rule
 */
 template <FixedString RegexStr>
 struct Regex {
-    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
+    using ReturnType = Regex<RegexStr>;
+
+    std::string match;
+    Regex(const std::string& match) : match(match){};
+
+    static std::optional<Result<ReturnType>> Match(Context ctx, const bool consume) {
         static const std::regex re{RegexStr.value, std::regex::optimize};
         std::cmatch match;
 
@@ -73,47 +74,69 @@ struct Regex {
             if (consume) {
                 next_ctx.input.remove_prefix(len);
             }
-            return Result<Node>{
+            return Result<ReturnType>{
                 .ctx = next_ctx,
-                .value = Node{
-                    .rule_name = "Regex",
-                    .match_text = matched_slice,
-                    .children = {}
-                }
+                .value = ReturnType(std::string(matched_slice))
             };
         }
         return std::nullopt;
     }
 };
 
+
+// Generic parse tree node returned by all rules
+struct Node {
+    std::string_view rule_name;
+    std::string_view match_text;
+    std::vector<Node> children;
+};
+
+
+
 /*
 Sequence Rule
 */
+
+
 template <typename... Rules>
 struct Sequence {
-    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
+    using ReturnType = std::tuple<typename Rules::ReturnType...>;
+
+    static std::optional<Result<ReturnType>> Match(Context ctx, const bool consume) {
         Context current = ctx;
-        std::vector<Node> children;
-        children.reserve(sizeof...(Rules));
+        bool matched = true;
 
-        bool matched = (... && [&]() {
-            auto res = match_rule<Rules>(current, consume);
-            if (!res) return false;
-            current = res->ctx;
-            children.push_back(std::move(res->value));
-            return true;
-        }());
+        // Extract each rule sequentially and move into the tuple constructor
+        auto parse_all = [&]<std::size_t... Is>(std::index_sequence<Is...>) -> std::optional<ReturnType> {
+            // Temporary storage for results to avoid needing default constructors
+            std::tuple<std::optional<typename Rules::ReturnType>...> results;
 
-        if (!matched) return std::nullopt;
+            auto match_one = [&]<std::size_t I, typename Rule>() {
+                if (!matched) return;
+                auto res = match_rule<Rule>(current, consume);
+                if (!res) {
+                    matched = false;
+                    return;
+                }
+                current = res->ctx;
+                std::get<I>(results).emplace(std::move(res->value));
+            };
 
-        std::size_t len = ctx.input.size() - current.input.size();
-        return Result<Node>{
+            // Force sequential left-to-right evaluation
+            (match_one.template operator()<Is, Rules>(), ...);
+
+            if (!matched) return std::nullopt;
+
+            // Move values out of optionals into the final ReturnType tuple
+            return ReturnType{ std::move(*std::get<Is>(results))... };
+        };
+
+        auto values = parse_all(std::make_index_sequence<sizeof...(Rules)>{});
+        if (!values) return std::nullopt;
+
+        return Result<ReturnType>{
             .ctx = current,
-            .value = Node{
-                .rule_name = "Sequence",
-                .match_text = ctx.input.substr(0, len),
-                .children = std::move(children)
-            }
+            .value = std::move(*values)
         };
     }
 };
@@ -121,15 +144,26 @@ struct Sequence {
 /*
 Or (Choice) Rule
 */
+
+
 template <typename... Rules>
 struct Or {
-    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
-        std::optional<Result<Node>> result = std::nullopt;
+    // 1. Define ReturnType as a variant of each Rule's ReturnType
+    using ReturnType = std::variant<typename Rules::ReturnType...>;
 
+    static std::optional<Result<ReturnType>> Match(Context ctx, const bool consume) {
+        std::optional<Result<ReturnType>> result = std::nullopt;
+
+        // 2. Short-circuiting fold expression over logical OR (||)
         (... || [&]() {
             if (auto res = match_rule<Rules>(ctx, consume)) {
-                result = std::move(res);
-                return true;
+                result = Result<ReturnType>{
+                    .ctx = res->ctx,
+                    // Implicitly constructs std::variant<typename Rules::ReturnType...> 
+                    // holding the value of the active Rule
+                    .value = std::move(res->value) 
+                };
+                return true; // Stop evaluating subsequent rules
             }
             return false;
         }());
@@ -143,9 +177,11 @@ Repeated Rule (Zero or More)
 */
 template <typename Rule>
 struct Repeated {
-    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
+    using ReturnType = std::vector<typename Rule::ReturnType>;
+
+    static std::optional<Result<ReturnType>> Match(Context ctx, const bool consume) {
         Context current = ctx;
-        std::vector<Node> children;
+        ReturnType children; // std::vector<typename Rule::ReturnType>
 
         while (auto res = match_rule<Rule>(current, consume)) {
             if (res->ctx.input.size() == current.input.size()) break; // Prevent zero-width infinite loops
@@ -153,14 +189,9 @@ struct Repeated {
             current = res->ctx;
         }
 
-        std::size_t len = ctx.input.size() - current.input.size();
-        return Result<Node>{
+        return Result<ReturnType>{
             .ctx = current,
-            .value = Node{
-                .rule_name = "Repeated",
-                .match_text = ctx.input.substr(0, len),
-                .children = std::move(children)
-            }
+            .value = std::move(children)
         };
     }
 };
@@ -170,8 +201,15 @@ Eval (Deferred Rule Evaluation for Recursion)
 */
 template <typename Rule>
 struct Eval {
-    static std::optional<Result<Node>> Match(Context ctx, const bool consume) {
-        return Rule::Match(ctx, consume);
+    using ReturnType = std::shared_ptr<typename Rule::ReturnType>;
+    static std::optional<Result<ReturnType>> Match(Context ctx, const bool consume) {
+        if(auto res = Rule::Match(ctx, consume)){
+            return Result{
+                .ctx = res->ctx,
+                .value = std::make_shared<typename Rule::ReturnType>(res->value)
+            };
+        }
+        return std::nullopt;
     }
 };
 
@@ -179,11 +217,12 @@ struct Eval {
 End Of File
 */
 struct EndOfFile {
-    static std::optional<Result<Node>> Match(Context ctx, const bool /*consume*/) {
+    using ReturnType = std::monostate;
+    static std::optional<Result<ReturnType>> Match(Context ctx, const bool /*consume*/) {
         if (ctx.input.empty()) {
-            return Result<Node>{
+            return Result<ReturnType>{
                 .ctx = ctx,
-                .value = Node{.rule_name = "EndOfFile", .match_text = {}, .children = {}}
+                .value = std::monostate()
             };
         }
         return std::nullopt;
