@@ -1,4 +1,4 @@
-Parsing Expression Grammar implementation as a CPP metaprogram.
+Parsing Expression Grammar library as a CPP metaprogramming API.
 
 Some cleanup is still needed on recursive types, and some implementation is still needed such as NOT conditionals.
 
