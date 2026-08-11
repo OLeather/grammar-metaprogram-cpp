@@ -10,8 +10,7 @@ int main() {
   language::Context ctx{.input = input};
   const auto actual_value = 4.3 + (7 + std::pow(3.4,5)) * 6;
 
-  constexpr bool kConsume{true};
-  if (auto result = Matcher<Calculation>::Match(ctx, kConsume)) {
+  if (auto result = Matcher<Calculation>::Match(ctx)) {
     std::cout << "Parse success!\n";
     const auto parsed_value = Bindings{}(result->value);
     std::cout << "Parsed expression value: " << parsed_value << std::endl;

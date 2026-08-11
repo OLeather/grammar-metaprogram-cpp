@@ -1,5 +1,5 @@
 #pragma once
-#include "source/grammar_new.h"
+#include "source/grammar.h"
 
 /*
 # Top-level Entry Point

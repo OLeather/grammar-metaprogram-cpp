@@ -6,7 +6,7 @@ package(default_visibility = ["//visibility:public"])
 cc_library(
     name = "syntax",
     hdrs = ["syntax.h"],
-    deps = ["//source:grammar_new",]
+    deps = ["//source:grammar",]
 )
 cc_library(
     name = "bindings",

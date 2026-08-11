@@ -11,8 +11,7 @@ template <std::size_t N> struct FixedString {
 };
 
 template <typename T>
-std::optional<Result<T>> MatchRegex(const std::regex &regex, Context ctx,
-                                    const bool consume) {
+std::optional<Result<T>> MatchRegex(const std::regex &regex, Context ctx) {
   const auto match_type = std::regex_constants::match_continuous;
 
   std::match_results<std::string_view::const_iterator> match;
@@ -24,8 +23,7 @@ std::optional<Result<T>> MatchRegex(const std::regex &regex, Context ctx,
     return std::nullopt;
 
   const size_t match_length = match.length(0);
-  const auto new_input = consume ? ctx.input.substr(match_length) : ctx.input;
-  const Context new_ctx{new_input};
+  const Context new_ctx{ctx.input.substr(match_length)};
   const auto consumed = ctx.input.substr(0, match_length);
 
   return Result<T>{.ctx = new_ctx, .value = T(std::string(consumed))};

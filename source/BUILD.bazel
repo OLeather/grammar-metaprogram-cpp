@@ -25,19 +25,5 @@ cc_library(
 cc_library(
     name = "grammar",
     hdrs = ["grammar.h"],
-    deps = [":result",":regex_helpers"]
-)
-
-cc_library(
-    name = "grammar_new",
-    hdrs = ["grammar_new.h"],
-    deps = [":result",":regex_helpers","@boost.variant"]
-)
-
-
-
-cc_binary(
-    name = "test_recursive_wrapper",
-    srcs = ["test_recursive_wrapper.cpp"],
-    deps = ["@boost.variant"]
+    deps = [":result",":regex_helpers", "@boost.variant"]
 )
