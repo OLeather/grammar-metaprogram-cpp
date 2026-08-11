@@ -34,9 +34,17 @@ template <typename... Rules> struct Seq {
   using IsSeq = void;
 };
 
+template <typename Rule> struct Repeated {
+  using IsRepeated = void;
+};
+
 template <typename TargetRule> struct Eval {
   using Target = TargetRule;
 };
+
+// struct EndOfFile {
+//   using IsEOF = void;
+// };
 
 /*
 Return Types
@@ -60,6 +68,14 @@ template <typename TargetRule> struct ReturnTypeOf<Eval<TargetRule>> {
 template <FixedString Pattern> struct ReturnTypeOf<Regex<Pattern>> {
   using type = Regex<Pattern>;
 };
+
+template <typename Rule> struct ReturnTypeOf<Repeated<Rule>> {
+  using type = std::vector<typename ReturnTypeOf<Rule>::type>;
+};
+
+// template <> struct ReturnTypeOf<EndOfFile> {
+//   using type = std::monostate;
+// };
 
 /*
 Matchers
@@ -130,19 +146,45 @@ template <typename Head, typename... Tail> struct Matcher<Seq<Head, Tail...>> {
   }
 };
 
-template <typename Target>
-struct Matcher<Eval<Target>> {
+template <typename Target> struct Matcher<Eval<Target>> {
   using ReturnType = boost::recursive_wrapper<Target>;
 
   static std::optional<Result<ReturnType>> Match(Context ctx, bool consume) {
     auto res = Matcher<typename Target::Grammar>::Match(ctx, consume);
-    if (!res) return std::nullopt;
+    if (!res)
+      return std::nullopt;
 
     return Result<ReturnType>{
-        .ctx = res->ctx,
-        .value = ReturnType(Target{std::move(res->value)})
-    };
+        .ctx = res->ctx, .value = ReturnType(Target{std::move(res->value)})};
   }
 };
+
+template <typename Rule> struct Matcher<Repeated<Rule>> {
+  using VecType = typename ReturnTypeOf<Repeated<Rule>>::type;
+
+  static std::optional<Result<VecType>> Match(Context ctx, const bool consume) {
+    Context current = ctx;
+    VecType children;
+
+    while (auto res = Matcher<Rule>::Match(current, consume)) {
+      if (res->ctx.input.size() == current.input.size())
+        break;
+      children.push_back(std::move(res->value));
+      current = res->ctx;
+    }
+
+    return Result<VecType>{.ctx = current, .value = std::move(children)};
+  }
+};
+
+// template <> struct Matcher<EndOfFile> {
+//   static std::optional<Result<std::monostate>> Match(Context ctx,
+//                                                      const bool consume) {
+//     if (ctx.input.empty()) {
+//       return Result<std::monostate>{.ctx = ctx, .value = std::monostate()};
+//     }
+//     return std::nullopt;
+//   }
+// }
 
 } // namespace language

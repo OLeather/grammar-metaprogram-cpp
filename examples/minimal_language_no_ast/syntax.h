@@ -4,6 +4,7 @@
 namespace example::syntax {
 
 using namespace language;
+struct Expr;
 
 // // using Whitespace = Repeated<Regex<"[ \\t\\r\\n]+">>;
 using Number = Regex<"[0-9]+">;
@@ -12,30 +13,37 @@ using Star = Regex<"\\*">;
 using LParen = Regex<"\\(">;
 using RParen = Regex<"\\)">;
 
-struct Expr;
 // using Parenthesized = Seq<LParen, Operator, RParen>;
-using Parenthesized = Seq<LParen, Eval<Expr>, RParen>;
+// using Parenthesized = Seq<LParen, Eval<Expr>, RParen>;
 
-struct Expr : Or<Number, Parenthesized> {
-  using Grammar = Or<Number, Parenthesized>;
-  using ReturnType = ReturnTypeOf<Grammar>::type;
-  ReturnType value;
-  Expr(ReturnType t) : value(t){};
-};
+// struct Expr : Or<Number, Parenthesized> {
+//   using Grammar = Or<Number, Parenthesized>;
+//   using ReturnType = ReturnTypeOf<Grammar>::type;
+//   ReturnType value;
+//   Expr(ReturnType t) : value(t){};
+// };
+
+// using Test = Repeated<Plus>;
 
 // struct Expr : Or<Number, Parenthesized>{};
 
-// using Parenthesized = Sequence<LParen, Eval<Expr>, RParen>;
+using Parenthesized = Seq<LParen, Eval<Expr>, RParen>;
 
 // // using Pluses = Repeated<Plus>;
 // // struct Expr : Or<Number, Parenthesized>{};
 
-// using Factor = Or<Number, Parenthesized>;
+using Factor = Or<Number, Parenthesized>;
 
-// using Term = Sequence<Factor, Repeated<Sequence<Star, Factor>>>;
+using Term = Seq<Factor, Repeated<Seq<Star, Factor>>>;
 
-// struct Expr : Or<Sequence<Term, Repeated<Sequence<Plus, Term>>>, Term> {};
+// using ExprGrammar = Or<Seq<Term, Repeated<Seq<Plus, Term>>>, Term>;
+struct Expr : Or<Seq<Term, Repeated<Seq<Plus, Term>>>, Term> {
+  using Grammar = Or<Seq<Term, Repeated<Seq<Plus, Term>>>, Term>;
+  using ReturnType = ReturnTypeOf<Grammar>::type;
+  ReturnType value;
+  Expr(ReturnType t) : value(t) {};
+};
 
-// using Grammar = Sequence<Expr, EndOfFile>;
+using Grammar = Seq<Eval<Expr>, Regex<"E">>;
 
 } // namespace example::syntax
