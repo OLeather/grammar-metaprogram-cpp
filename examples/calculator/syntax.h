@@ -1,14 +1,13 @@
-#pragma once
-#include "source/grammar.h"
-
 /*
+Re-implementation of the following PEG definition of a simple calculator:
+
 # Top-level Entry Point
 Calculation <- _ Expression !_
 
 # Precedence Levels (Lowest to Highest)
 Expression  <- Term (AdditiveOp Term)*
 Term        <- Factor (MultiplicativeOp Factor)*
-Factor      <- Primary ('^' Factor)?      # Right-associative exponentiation
+Factor      <- Primary ('^' Factor)?
 Primary     <- '(' _ Expression ')' _ / Number
 
 # Operators
@@ -19,8 +18,11 @@ MultiplicativeOp <- ('*' / '/') _
 Number      <- (Float / Integer) _
 Float       <- [0-9]+ '.' [0-9]+
 Integer     <- [0-9]+
-_           <- [ \t\n\r]*                 # Optional whitespace
+_           <- [ \t\n\r]*
 */
+
+#pragma once
+#include "source/grammar.h"
 
 namespace example::calculator::syntax {
 using namespace language;

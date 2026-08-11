@@ -231,5 +231,4 @@ template <> struct Matcher<EndOfFile> {
   }
 };
 
-
 } // namespace language
