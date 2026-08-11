@@ -25,5 +25,5 @@ cc_library(
 cc_library(
     name = "grammar",
     hdrs = ["grammar.h"],
-    deps = [":result",":regex_helpers"]
+    deps = [":result",":regex_helpers", "@boost.variant"]
 )

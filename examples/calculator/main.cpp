@@ -1,0 +1,28 @@
+#include "examples/calculator/syntax.h"
+#include "examples/calculator/bindings.h"
+#include <iostream>
+
+using namespace example::calculator::syntax;
+using namespace example::calculator::bindings;
+
+int main() {
+  const std::string input = "4.3 + (7 + 3.4^5) * 6";
+  const auto actual_value = 4.3 + (7 + std::pow(3.4,5)) * 6;
+
+  const language::Context ctx{.input = input};
+  const auto result = Matcher<Calculation>::Match(ctx);
+
+  if (!result) {
+    throw std::runtime_error("Parse failed!\n");
+  }
+
+  const auto parsed_value = Bindings{}(result->value);
+  std::cout << "Parsed expression value: " << parsed_value << std::endl;
+  std::cout << "Actual value: " << actual_value << std::endl;
+  
+  if (actual_value == parsed_value) {
+    std::cout << "Parsed value equals actual value!" << std::endl;
+  } else{
+    std::cout << "Parsed value does not equal actual value." << std::endl;
+  }
+}
