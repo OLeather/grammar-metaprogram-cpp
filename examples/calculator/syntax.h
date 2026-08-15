@@ -1,31 +1,12 @@
-/*
-Re-implementation of the following PEG definition of a simple calculator:
-
-# Top-level Entry Point
-Calculation <- _ Expression !_
-
-# Precedence Levels (Lowest to Highest)
-Expression  <- Term (AdditiveOp Term)*
-Term        <- Factor (MultiplicativeOp Factor)*
-Factor      <- Primary ('^' Factor)?
-Primary     <- '(' _ Expression ')' _ / Number
-
-# Operators
-AdditiveOp       <- ('+' / '-') _
-MultiplicativeOp <- ('*' / '/') _
-
-# Lexical Tokens
-Number      <- (Float / Integer) _
-Float       <- [0-9]+ '.' [0-9]+
-Integer     <- [0-9]+
-_           <- [ \t\n\r]*
-*/
-
 #pragma once
 #include "source/grammar.h"
+#include <boost/variant/recursive_wrapper.hpp>
 
 namespace example::calculator::syntax {
 using namespace language;
+
+template <typename T>
+using wrap = boost::recursive_wrapper<T>;
 
 struct Expression;
 struct Factor;
@@ -35,34 +16,34 @@ using Float   = Regex<"[0-9]+\\.[0-9]+">;
 using Integer = Regex<"[0-9]+">;
 
 // Number <- (Float / Integer) _
-using Number  = Seq<Or<Float, Integer>, Spacing>;
+using Number  = std::tuple<std::variant<Float, Integer>, Spacing>;
 
-using Plus          = Seq<Regex<"\\+">, Spacing>;
-using Minus         = Seq<Regex<"\\-">, Spacing>;
-using Star          = Seq<Regex<"\\*">, Spacing>;
-using Slash         = Seq<Regex<"\\/">, Spacing>;
-using ExponentialOp = Seq<Regex<"\\^">, Spacing>;
+using Plus          = std::tuple<Regex<"\\+">, Spacing>;
+using Minus         = std::tuple<Regex<"\\-">, Spacing>;
+using Star          = std::tuple<Regex<"\\*">, Spacing>;
+using Slash         = std::tuple<Regex<"\\/">, Spacing>;
+using ExponentialOp = std::tuple<Regex<"\\^">, Spacing>;
 
-using AdditiveOp       = Or<Plus, Minus>;
-using MultiplicativeOp = Or<Star, Slash>;
+using AdditiveOp       = std::variant<Plus, Minus>;
+using MultiplicativeOp = std::variant<Star, Slash>;
 
-using LParen = Seq<Regex<"\\(">, Spacing>;
-using RParen = Seq<Regex<"\\)">, Spacing>;
+using LParen = std::tuple<Regex<"\\(">, Spacing>;
+using RParen = std::tuple<Regex<"\\)">, Spacing>;
 
 // Primary <- '(' _ Expression ')' _ / Number
-using Primary = Or<Seq<LParen, Eval<Expression>, RParen>, Number>;
+using Primary = std::variant<std::tuple<LParen, wrap<Expression>, RParen>, Number>;
 
 // Factor <- Primary ('^' Factor)?
-using ExpFactor = Seq<ExponentialOp, Number>;
-struct Factor : Def<Seq<Primary, Optional<ExpFactor>>> {};
+using ExpFactor = std::tuple<ExponentialOp, Number>;
+struct Factor : Def<std::tuple<Primary, std::optional<ExpFactor>>> {};
 
 // Term <- Factor (MultiplicativeOp Factor)*
-using Term = Seq<Eval<Factor>, Repeated<Seq<MultiplicativeOp, Eval<Factor>>>>;
+using Term = std::tuple<wrap<Factor>, std::vector<std::tuple<MultiplicativeOp, wrap<Factor>>>>;
 
 // Expression <- Term (AdditiveOp Term)*
-struct Expression : Def<Seq<Term, Repeated<Seq<AdditiveOp, Term>>>> {};
+struct Expression : Def<std::tuple<Term, std::vector<std::tuple<AdditiveOp, Term>>>> {};
 
 // Calculation <- _ Expression !_
-using Calculation = Seq<Spacing, Eval<Expression>, Spacing, EndOfFile>;
+using Calculation = std::tuple<Spacing, wrap<Expression>, Spacing, EndOfFile>;
 
 } // namespace example::calculator::syntax

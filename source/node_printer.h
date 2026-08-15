@@ -55,7 +55,7 @@ struct NodePrinter {
       NodePrinter{indent}(opt.value());
     }
   }
-
-  void operator()(const std::monostate m) {}
+  void operator()(const std::monostate& m) {}
+  void operator()(const EndOfFile& m) {}
 };
 } // namespace language

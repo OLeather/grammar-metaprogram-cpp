@@ -57,73 +57,72 @@ using namespace language;
 struct ExpressionDef;
 
 // clang-format off
-using EndOfLine = Or<Regex<"\r\n">, Regex<"\n">, Regex<"\r">>;
-using Space      = Or<Regex<" ">, Regex<"\t">, EndOfLine>;
+using EndOfLine = std::variant<Regex<"\r\n">, Regex<"\n">, Regex<"\r">>;
+using Space      = std::variant<Regex<" ">, Regex<"\t">, EndOfLine>;
 
-using Comment = Seq<
+using Comment = std::tuple<
     Regex<"#">,
-    Repeated<Conditional<Not<EndOfLine>, Regex<".">>>,
+    std::vector<Conditional<Not<EndOfLine>, Regex<".">>>,
     EndOfLine
 >;
 
-using Spacing   = Repeated<Or<Space, Comment>>;
+using Spacing   = std::vector<std::variant<Space, Comment>>;
 
-using LEFTARROW = Seq<Regex<"<-">, Spacing>;
-using SLASH     = Seq<Regex<"/">, Spacing>;
-using AND       = Seq<Regex<"&">, Spacing>;
-using NOT       = Seq<Regex<"!">, Spacing>;
-using QUESTION  = Seq<Regex<"\\?">, Spacing>;
-using STAR      = Seq<Regex<"\\*">, Spacing>;
-using PLUS      = Seq<Regex<"\\+">, Spacing>;
-using OPEN      = Seq<Regex<"\\(">, Spacing>;
-using CLOSE     = Seq<Regex<"\\)">, Spacing>;
-using DOT       = Seq<Regex<"\\.">, Spacing>;
+using LEFTARROW = std::tuple<Regex<"<-">, Spacing>;
+using SLASH     = std::tuple<Regex<"/">, Spacing>;
+using AND       = std::tuple<Regex<"&">, Spacing>;
+using NOT       = std::tuple<Regex<"!">, Spacing>;
+using QUESTION  = std::tuple<Regex<"\\?">, Spacing>;
+using STAR      = std::tuple<Regex<"\\*">, Spacing>;
+using PLUS      = std::tuple<Regex<"\\+">, Spacing>;
+using OPEN      = std::tuple<Regex<"\\(">, Spacing>;
+using CLOSE     = std::tuple<Regex<"\\)">, Spacing>;
+using DOT       = std::tuple<Regex<"\\.">, Spacing>;
 
 using IdentStart = Regex<"[a-zA-Z_]">;
-using IdentCont  = Or<IdentStart, Regex<"[0-9]">>;
-using Identifier = Seq<IdentStart, Repeated<IdentCont>, Spacing>;
+using IdentCont  = std::variant<IdentStart, Regex<"[0-9]">>;
+using Identifier = std::tuple<IdentStart, std::vector<IdentCont>, Spacing>;
 
-using Char = Or<
+using Char = std::variant<
     Regex<"\\\\([nrt'\"\\[\\]\\\\])">,
     Regex<"\\\\([0-2][0-7][0-7])">,
     Regex<"\\\\([0-7]{1,2})">, 
-    Seq<Not<Regex<"\\\\">>, Regex<".">>
+    std::tuple<Not<Regex<"\\\\">>, Regex<".">>
 >;
 
-using Range = Or<
-    Seq<Char, Regex<"-">, Char>,
+using Range = std::variant<
+    std::tuple<Char, Regex<"-">, Char>,
     Char
 >;
 
-using Class = Seq<
+using Class = std::tuple<
     Regex<"\\[">,
-    Repeated<Conditional<Not<Regex<"\\]">>, Range>>,
+    std::vector<Conditional<Not<Regex<"\\]">>, Range>>,
     Regex<"\\]">,
     Spacing
 >;
 
-using Literal = Or<
-    Seq<Regex<"'">, Repeated<Conditional<Not<Regex<"'">>, Char>>, Regex<"'">, Spacing>,
-    Seq<Regex<"\"">, Repeated<Conditional<Not<Regex<"\"">>, Char>>, Regex<"\"">, Spacing>
+using Literal = std::variant<
+    std::tuple<Regex<"'">, std::vector<Conditional<Not<Regex<"'">>, Char>>, Regex<"'">, Spacing>,
+    std::tuple<Regex<"\"">, std::vector<Conditional<Not<Regex<"\"">>, Char>>, Regex<"\"">, Spacing>
 >;
 
-
-using Primary = Or<
-    Seq<Identifier, Not<LEFTARROW>>,
-    Seq<OPEN, Eval<ExpressionDef>, CLOSE>,
+using Primary = std::variant<
+    std::tuple<Identifier, Not<LEFTARROW>>,
+    std::tuple<OPEN, boost::recursive_wrapper<ExpressionDef>, CLOSE>,
     Literal,
     Class,
     DOT
 >;
 
-using Suffix   = Seq<Primary, Optional<Or<QUESTION, STAR, PLUS>>>;
-using Prefix   = Seq<Optional<Or<AND, NOT>>, Suffix>;
-using Sequence = Repeated<Prefix>;
+using Suffix   = std::tuple<Primary, std::optional<std::variant<QUESTION, STAR, PLUS>>>;
+using Prefix   = std::tuple<std::optional<std::variant<AND, NOT>>, Suffix>;
+using Sequence = std::vector<Prefix>;
 
-struct ExpressionDef : Def<Seq<Sequence, Repeated<Seq<SLASH, Sequence>>>> {};
+struct ExpressionDef : Def<std::tuple<Sequence, std::vector<std::tuple<SLASH, Sequence>>>> {};
 
-using Definition = Seq<Identifier, LEFTARROW, Eval<ExpressionDef>>;
-using Grammar    = Seq<Spacing, Repeated<Definition>, EndOfFile>;
+using Definition = std::tuple<Identifier, LEFTARROW, boost::recursive_wrapper<ExpressionDef>>;
+using Grammar    = std::tuple<Spacing, std::vector<Definition>, EndOfFile>;
 //clang-format on
 
 } // namespace peg
