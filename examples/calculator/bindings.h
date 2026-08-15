@@ -30,7 +30,7 @@ struct Bindings {
 
   double operator()(const ExpressionOrTerm auto &node) {
     const auto &[left, right_vec] = node;
-    double res = (*this)(left);
+    double res = Bindings{}(left);
     for (const auto &[op, right] : right_vec) {
       const double val = Bindings{}(right);
       res = std::visit(OpVisitor{res, val}, op);
