@@ -50,7 +50,8 @@ struct Bindings {
     const auto &[left, maybe_exponent] = f;
     double res = Bindings{}(left);
     if (maybe_exponent.has_value()) {
-      res = std::pow(res, Bindings{}(std::get<1>(maybe_exponent.value())));
+      const auto exponent = Bindings{}(std::get<1>(maybe_exponent.value()));
+      res = std::pow(res, exponent);
     }
     return res;
   }
