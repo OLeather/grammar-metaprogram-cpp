@@ -5,31 +5,25 @@ Rules define C++ types directly. This makes rule definition, matching, and bindi
 ```cpp
 // Each Regex<"..."> is a unique type
 using Plus = Regex<"\\+">;
+using Minus = Regex<"\\-">;
 using Number = Regex<"[0-9]+">;
 
-using Addition = Seq<Number, Plus, Number>; 
-
-// Seq matches to a tuple
+// std::tuple represents a sequence of rules
+using Addition = std::tuple<Number, Plus, Number>; 
 Matcher<Addition>::Match({.input = "4+3"})->value // -> ReturnType is std::tuple<Number, Plus, Number>
 
-using Minus = Regex<"\\-">;
-using Op = Or<Plus, Minus>;
-
-// Or matches to a variant
+// std::variant represents an OR
+using Op = std::variant<Plus, Minus>;
 Matcher<Op>::Match({.input = "-"})->value // -> ReturnType is std::variant<Plus, Minus>
 
-using Ops = Repeated<Op>;
-
-// Repeated matches to a std::vector
+// std::vector matches a to a repeated sequence (none or many)
+using Ops = std::vector<Op>;
 Matcher<Ops>::Match({.input = "+-+-+-+"})->value // -> ReturnType is std::vector<std::variant<Plus, Minus>>
 
-using MaybeOp = Conditional<Op, Op>;
-
-// Conditional matches to a std::optional
+// std::optional represents an optional rule which may be matched or not
+using MaybeOp = std::optional<Op>;
 Matcher<MaybeOp>::Match({.input = "+"})->value // -> ReturnType is std::optional<std::variant<Plus, Minus>>
 ```
-
-
 
 TODOs:
 - Some cleanup is still needed on recursive types to avoid verbosity of struct definition.
