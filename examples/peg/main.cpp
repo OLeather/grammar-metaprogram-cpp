@@ -55,5 +55,5 @@ int main() {
     throw std::runtime_error("Parse failed!\n");
   }
 
-  language::NodePrinter{}.operator()(result->value);
+  language::NodePrinter{}(result->value);
 }
