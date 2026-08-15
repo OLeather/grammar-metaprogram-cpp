@@ -54,62 +54,65 @@ namespace peg {
 
 using namespace language;
 
+template <typename T> using wrap = boost::recursive_wrapper<T>;
+template <FixedString T> using r = Regex<T>;
+
 struct ExpressionDef;
 
 // clang-format off
-using EndOfLine = std::variant<Regex<"\r\n">, Regex<"\n">, Regex<"\r">>;
-using Space      = std::variant<Regex<" ">, Regex<"\t">, EndOfLine>;
+using EndOfLine = std::variant<r<"\r\n">, r<"\n">, r<"\r">>;
+using Space      = std::variant<r<" ">, r<"\t">, EndOfLine>;
 
 using Comment = std::tuple<
-    Regex<"#">,
-    std::vector<std::tuple<Not<EndOfLine>, Regex<".">>>,
+    r<"#">,
+    std::vector<std::tuple<Not<EndOfLine>, r<".">>>,
     EndOfLine
 >;
 
 using Spacing   = std::vector<std::variant<Space, Comment>>;
 
-using LEFTARROW = std::tuple<Regex<"<-">, Spacing>;
-using SLASH     = std::tuple<Regex<"/">, Spacing>;
-using AND       = std::tuple<Regex<"&">, Spacing>;
-using NOT       = std::tuple<Regex<"!">, Spacing>;
-using QUESTION  = std::tuple<Regex<"\\?">, Spacing>;
-using STAR      = std::tuple<Regex<"\\*">, Spacing>;
-using PLUS      = std::tuple<Regex<"\\+">, Spacing>;
-using OPEN      = std::tuple<Regex<"\\(">, Spacing>;
-using CLOSE     = std::tuple<Regex<"\\)">, Spacing>;
-using DOT       = std::tuple<Regex<"\\.">, Spacing>;
+using LEFTARROW = std::tuple<r<"<-">, Spacing>;
+using SLASH     = std::tuple<r<"/">, Spacing>;
+using AND       = std::tuple<r<"&">, Spacing>;
+using NOT       = std::tuple<r<"!">, Spacing>;
+using QUESTION  = std::tuple<r<"\\?">, Spacing>;
+using STAR      = std::tuple<r<"\\*">, Spacing>;
+using PLUS      = std::tuple<r<"\\+">, Spacing>;
+using OPEN      = std::tuple<r<"\\(">, Spacing>;
+using CLOSE     = std::tuple<r<"\\)">, Spacing>;
+using DOT       = std::tuple<r<"\\.">, Spacing>;
 
-using IdentStart = Regex<"[a-zA-Z_]">;
-using IdentCont  = std::variant<IdentStart, Regex<"[0-9]">>;
+using IdentStart = r<"[a-zA-Z_]">;
+using IdentCont  = std::variant<IdentStart, r<"[0-9]">>;
 using Identifier = std::tuple<IdentStart, std::vector<IdentCont>, Spacing>;
 
 using Char = std::variant<
-    Regex<"\\\\([nrt'\"\\[\\]\\\\])">,
-    Regex<"\\\\([0-2][0-7][0-7])">,
-    Regex<"\\\\([0-7]{1,2})">, 
-    std::tuple<Not<Regex<"\\\\">>, Regex<".">>
+    r<"\\\\([nrt'\"\\[\\]\\\\])">,
+    r<"\\\\([0-2][0-7][0-7])">,
+    r<"\\\\([0-7]{1,2})">, 
+    std::tuple<Not<r<"\\\\">>, r<".">>
 >;
 
 using Range = std::variant<
-    std::tuple<Char, Regex<"-">, Char>,
+    std::tuple<Char, r<"-">, Char>,
     Char
 >;
 
 using Class = std::tuple<
-    Regex<"\\[">,
-    std::vector<std::tuple<Not<Regex<"\\]">>, Range>>,
-    Regex<"\\]">,
+    r<"\\[">,
+    std::vector<std::tuple<Not<r<"\\]">>, Range>>,
+    r<"\\]">,
     Spacing
 >;
 
 using Literal = std::variant<
-    std::tuple<Regex<"'">, std::vector<std::tuple<Not<Regex<"'">>, Char>>, Regex<"'">, Spacing>,
-    std::tuple<Regex<"\"">, std::vector<std::tuple<Not<Regex<"\"">>, Char>>, Regex<"\"">, Spacing>
+    std::tuple<r<"'">, std::vector<std::tuple<Not<r<"'">>, Char>>, r<"'">, Spacing>,
+    std::tuple<r<"\"">, std::vector<std::tuple<Not<r<"\"">>, Char>>, r<"\"">, Spacing>
 >;
 
 using Primary = std::variant<
     std::tuple<Identifier, Not<LEFTARROW>>,
-    std::tuple<OPEN, boost::recursive_wrapper<ExpressionDef>, CLOSE>,
+    std::tuple<OPEN, wrap<ExpressionDef>, CLOSE>,
     Literal,
     Class,
     DOT
@@ -121,7 +124,7 @@ using Sequence = std::vector<Prefix>;
 
 struct ExpressionDef : Def<std::tuple<Sequence, std::vector<std::tuple<SLASH, Sequence>>>> {};
 
-using Definition = std::tuple<Identifier, LEFTARROW, boost::recursive_wrapper<ExpressionDef>>;
+using Definition = std::tuple<Identifier, LEFTARROW, wrap<ExpressionDef>>;
 using Grammar    = std::tuple<Spacing, std::vector<Definition>, EndOfFile>;
 //clang-format on
 
