@@ -5,6 +5,7 @@
 #include <boost/variant/recursive_wrapper.hpp>
 #include <concepts>
 #include <cstddef>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <regex>
@@ -14,7 +15,6 @@
 #include <utility>
 #include <variant>
 #include <vector>
-#include <iostream>
 
 namespace language {
 
@@ -45,6 +45,14 @@ template <typename TargetRule> struct Eval {
 
 template <typename Condition> struct Optional {
   using IsOptional = void;
+};
+
+template <typename Condition, typename Action> struct Conditional {
+  using IsConditional = void;
+};
+
+template <typename Rule> struct Not {
+  using IsNot = void;
 };
 
 struct EndOfFile {
@@ -78,9 +86,17 @@ template <typename Rule> struct ReturnTypeOf<Repeated<Rule>> {
   using type = std::vector<typename ReturnTypeOf<Rule>::type>;
 };
 
-template <typename Condition>
-struct ReturnTypeOf<Optional<Condition>> {
+template <typename Condition> struct ReturnTypeOf<Optional<Condition>> {
   using type = std::optional<typename ReturnTypeOf<Condition>::type>;
+};
+
+template <typename Condition, typename Action>
+struct ReturnTypeOf<Conditional<Condition, Action>> {
+  using type = std::optional<typename ReturnTypeOf<Action>::type>;
+};
+
+template <typename Rule> struct ReturnTypeOf<Not<Rule>> {
+  using type = std::monostate;
 };
 
 template <> struct ReturnTypeOf<EndOfFile> {
@@ -90,7 +106,7 @@ template <> struct ReturnTypeOf<EndOfFile> {
 /*
 Recursive Definition
 */
-template <typename GrammarT> struct Def{
+template <typename GrammarT> struct Def {
   using Grammar = GrammarT;
   using ReturnType = ReturnTypeOf<Grammar>::type;
   ReturnType value;
@@ -107,7 +123,8 @@ template <FixedString Pattern> struct Matcher<Regex<Pattern>> {
   using ReturnType = typename ReturnTypeOf<Regex<Pattern>>::type;
 
   static std::optional<Result<ReturnType>> Match(Context ctx) {
-    static const std::regex re{"^(" + std::string(Pattern.value) + ")", std::regex::optimize};
+    static const std::regex re{"^(" + std::string(Pattern.value) + ")",
+                               std::regex::optimize};
     return MatchRegex<ReturnType>(re, ctx);
   }
 };
@@ -117,10 +134,8 @@ template <typename Head> struct Matcher<Or<Head>> {
 
   static std::optional<Result<VariantType>> Match(Context ctx) {
     if (auto res = Matcher<Head>::Match(ctx)) {
-      return Result<VariantType>{
-          .ctx = res->ctx,
-          .value = VariantType(std::move(res->value))
-      };
+      return Result<VariantType>{.ctx = res->ctx,
+                                 .value = VariantType(std::move(res->value))};
     }
     return std::nullopt;
   }
@@ -210,25 +225,35 @@ template <typename Rule> struct Matcher<Repeated<Rule>> {
   }
 };
 
-template <typename Condition>
-struct Matcher<Optional<Condition>> {
-  using OptType = typename ReturnTypeOf<Optional<Condition>>::type;
+template <typename Condition, typename Action>
+struct Matcher<Conditional<Condition, Action>> {
+  using OptType = typename ReturnTypeOf<Optional<Action>>::type;
 
   static std::optional<Result<OptType>> Match(Context ctx) {
     if (auto cond_res = Matcher<Condition>::Match(ctx)) {
-      if (auto action_res = Matcher<Condition>::Match(ctx)) {
-        return Result<OptType>{
-            .ctx = action_res->ctx,
-            .value = OptType(std::move(action_res->value))
-        };
+      if (auto action_res = Matcher<Action>::Match(ctx)) {
+        return Result<OptType>{.ctx = action_res->ctx,
+                               .value = OptType(std::move(action_res->value))};
       }
       return std::nullopt;
     }
 
-    return Result<OptType>{
-        .ctx = ctx,
-        .value = std::nullopt
-    };
+    return Result<OptType>{.ctx = ctx, .value = std::nullopt};
+  }
+};
+
+template <typename Condition>
+struct Matcher<Optional<Condition>>
+    : Matcher<Conditional<Condition, Condition>> {};
+
+template <typename Rule> struct Matcher<Not<Rule>> {
+  using ReturnType = std::monostate;
+
+  static std::optional<Result<ReturnType>> Match(Context ctx) {
+    if (auto res = Matcher<Rule>::Match(ctx)) {
+      return std::nullopt;
+    }
+    return Result{.ctx = ctx, .value = std::monostate()};
   }
 };
 
