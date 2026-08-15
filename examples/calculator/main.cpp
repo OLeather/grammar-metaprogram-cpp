@@ -1,5 +1,6 @@
 #include "examples/calculator/syntax.h"
 #include "examples/calculator/bindings.h"
+#include "source/node_printer.h"
 #include <iostream>
 
 using namespace example::calculator::syntax;
@@ -11,11 +12,13 @@ int main() {
 
   const language::Context ctx{.input = input};
   const auto result = Matcher<Calculation>::Match(ctx);
-
+  
   if (!result) {
     throw std::runtime_error("Parse failed!\n");
   }
 
+  NodePrinter{}.operator()(result->value);
+  
   const auto parsed_value = Bindings{}(result->value);
   std::cout << "Parsed expression value: " << parsed_value << std::endl;
   std::cout << "Actual value: " << actual_value << std::endl;

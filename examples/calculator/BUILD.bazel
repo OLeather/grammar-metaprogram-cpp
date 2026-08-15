@@ -16,5 +16,5 @@ cc_library(
 cc_binary(
     name = "main",
     srcs = ["main.cpp"],
-    deps = [":syntax", ":bindings",]
+    deps = [":syntax", ":bindings", "//source:node_printer",]
 )

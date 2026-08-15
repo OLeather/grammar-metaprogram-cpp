@@ -88,6 +88,16 @@ template <> struct ReturnTypeOf<EndOfFile> {
 };
 
 /*
+Recursive Definition
+*/
+template <typename GrammarT> struct Def{
+  using Grammar = GrammarT;
+  using ReturnType = ReturnTypeOf<Grammar>::type;
+  ReturnType value;
+  Def(ReturnType t) : value(t) {};
+};
+
+/*
 Matchers
 */
 

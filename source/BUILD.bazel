@@ -27,3 +27,9 @@ cc_library(
     hdrs = ["grammar.h"],
     deps = [":result",":regex_helpers", "@boost.variant"]
 )
+
+cc_library(
+    name = "node_printer",
+    hdrs = ["node_printer.h"],
+    deps = [":grammar"],
+)

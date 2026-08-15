@@ -54,24 +54,13 @@ using Primary = Or<Seq<LParen, Eval<Expression>, RParen>, Number>;
 
 // Factor <- Primary ('^' Factor)?
 using ExpFactor = Seq<ExponentialOp, Number>;
-
-struct Factor : Seq<Primary, Conditional<ExpFactor, ExpFactor>> {
-  using Grammar    = Seq<Primary, Conditional<ExpFactor, ExpFactor>>;
-  using ReturnType = ReturnTypeOf<Grammar>::type;
-  ReturnType value;
-  Factor(ReturnType t) : value(t) {};
-};
+struct Factor : Def<Seq<Primary, Conditional<ExpFactor, ExpFactor>>> {};
 
 // Term <- Factor (MultiplicativeOp Factor)*
 using Term = Seq<Eval<Factor>, Repeated<Seq<MultiplicativeOp, Eval<Factor>>>>;
 
 // Expression <- Term (AdditiveOp Term)*
-struct Expression : Seq<Term, Repeated<Seq<AdditiveOp, Term>>> {
-  using Grammar    = Seq<Term, Repeated<Seq<AdditiveOp, Term>>>;
-  using ReturnType = ReturnTypeOf<Grammar>::type;
-  ReturnType value;
-  Expression(ReturnType t) : value(t) {};
-};
+struct Expression : Def<Seq<Term, Repeated<Seq<AdditiveOp, Term>>>> {};
 
 // Calculation <- _ Expression !_
 using Calculation = Seq<Spacing, Eval<Expression>, Spacing, EndOfFile>;
