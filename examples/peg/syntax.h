@@ -62,7 +62,7 @@ using Space      = std::variant<Regex<" ">, Regex<"\t">, EndOfLine>;
 
 using Comment = std::tuple<
     Regex<"#">,
-    std::vector<Conditional<Not<EndOfLine>, Regex<".">>>,
+    std::vector<std::tuple<Not<EndOfLine>, Regex<".">>>,
     EndOfLine
 >;
 
@@ -97,14 +97,14 @@ using Range = std::variant<
 
 using Class = std::tuple<
     Regex<"\\[">,
-    std::vector<Conditional<Not<Regex<"\\]">>, Range>>,
+    std::vector<std::tuple<Not<Regex<"\\]">>, Range>>,
     Regex<"\\]">,
     Spacing
 >;
 
 using Literal = std::variant<
-    std::tuple<Regex<"'">, std::vector<Conditional<Not<Regex<"'">>, Char>>, Regex<"'">, Spacing>,
-    std::tuple<Regex<"\"">, std::vector<Conditional<Not<Regex<"\"">>, Char>>, Regex<"\"">, Spacing>
+    std::tuple<Regex<"'">, std::vector<std::tuple<Not<Regex<"'">>, Char>>, Regex<"'">, Spacing>,
+    std::tuple<Regex<"\"">, std::vector<std::tuple<Not<Regex<"\"">>, Char>>, Regex<"\"">, Spacing>
 >;
 
 using Primary = std::variant<

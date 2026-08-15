@@ -28,12 +28,12 @@ template <FixedString Pattern> struct Regex {
   Regex(const std::string &match) : match(match) {};
 };
 
-template <typename Condition, typename Action> struct Conditional {
-  using IsConditional = void;
-};
-
 template <typename Rule> struct Not {
   using IsNot = void;
+};
+
+template <typename Rule> struct And {
+  using IsAnd = void;
 };
 
 struct EndOfFile {
@@ -55,7 +55,8 @@ template <typename... Rules> struct ReturnTypeOf<std::tuple<Rules...>> {
   using type = std::tuple<typename ReturnTypeOf<Rules>::type...>;
 };
 
-template <typename TargetRule> struct ReturnTypeOf<boost::recursive_wrapper<TargetRule>> {
+template <typename TargetRule>
+struct ReturnTypeOf<boost::recursive_wrapper<TargetRule>> {
   using type = boost::recursive_wrapper<TargetRule>;
 };
 
@@ -71,12 +72,11 @@ template <typename Condition> struct ReturnTypeOf<std::optional<Condition>> {
   using type = std::optional<typename ReturnTypeOf<Condition>::type>;
 };
 
-template <typename Condition, typename Action>
-struct ReturnTypeOf<Conditional<Condition, Action>> {
-  using type = std::optional<typename ReturnTypeOf<Action>::type>;
+template <typename Rule> struct ReturnTypeOf<Not<Rule>> {
+  using type = std::monostate;
 };
 
-template <typename Rule> struct ReturnTypeOf<Not<Rule>> {
+template <typename Rule> struct ReturnTypeOf<And<Rule>> {
   using type = std::monostate;
 };
 
@@ -122,7 +122,8 @@ template <typename Head> struct Matcher<std::variant<Head>> {
   }
 };
 
-template <typename Head, typename... Tail> struct Matcher<std::variant<Head, Tail...>> {
+template <typename Head, typename... Tail>
+struct Matcher<std::variant<Head, Tail...>> {
   using VariantType = typename ReturnTypeOf<std::variant<Head, Tail...>>::type;
 
   static std::optional<Result<VariantType>> Match(Context ctx) {
@@ -150,7 +151,8 @@ template <typename Head, typename... Tail> struct Matcher<std::variant<Head, Tai
   }
 };
 
-template <typename Head, typename... Tail> struct Matcher<std::tuple<Head, Tail...>> {
+template <typename Head, typename... Tail>
+struct Matcher<std::tuple<Head, Tail...>> {
   using TupleType = typename ReturnTypeOf<std::tuple<Head, Tail...>>::type;
 
   static std::optional<Result<TupleType>> Match(Context ctx) {
@@ -206,26 +208,18 @@ template <typename Rule> struct Matcher<std::vector<Rule>> {
   }
 };
 
-template <typename Condition, typename Action>
-struct Matcher<Conditional<Condition, Action>> {
-  using OptType = typename ReturnTypeOf<std::optional<Action>>::type;
+template <typename Rule> struct Matcher<std::optional<Rule>> {
+  using OptType = typename ReturnTypeOf<std::optional<Rule>>::type;
 
   static std::optional<Result<OptType>> Match(Context ctx) {
-    if (auto cond_res = Matcher<Condition>::Match(ctx)) {
-      if (auto action_res = Matcher<Action>::Match(ctx)) {
-        return Result<OptType>{.ctx = action_res->ctx,
-                               .value = OptType(std::move(action_res->value))};
-      }
-      return std::nullopt;
+    if (auto res = Matcher<Rule>::Match(ctx)) {
+      return Result<OptType>{.ctx = res->ctx,
+                             .value = OptType(std::move(res->value))};
     }
 
     return Result<OptType>{.ctx = ctx, .value = std::nullopt};
   }
 };
-
-template <typename Condition>
-struct Matcher<std::optional<Condition>>
-    : Matcher<Conditional<Condition, Condition>> {};
 
 template <typename Rule> struct Matcher<Not<Rule>> {
   using ReturnType = std::monostate;
@@ -235,6 +229,17 @@ template <typename Rule> struct Matcher<Not<Rule>> {
       return std::nullopt;
     }
     return Result{.ctx = ctx, .value = std::monostate()};
+  }
+};
+
+template <typename Rule> struct Matcher<And<Rule>> {
+  using ReturnType = std::monostate;
+
+  static std::optional<Result<ReturnType>> Match(Context ctx) {
+    if (auto res = Matcher<Rule>::Match(ctx)) {
+      return Result{.ctx = ctx, .value = std::monostate()};
+    }
+    return std::nullopt;
   }
 };
 
