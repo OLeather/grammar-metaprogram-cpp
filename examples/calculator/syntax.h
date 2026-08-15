@@ -54,7 +54,7 @@ using Primary = Or<Seq<LParen, Eval<Expression>, RParen>, Number>;
 
 // Factor <- Primary ('^' Factor)?
 using ExpFactor = Seq<ExponentialOp, Number>;
-struct Factor : Def<Seq<Primary, Conditional<ExpFactor, ExpFactor>>> {};
+struct Factor : Def<Seq<Primary, Optional<ExpFactor>>> {};
 
 // Term <- Factor (MultiplicativeOp Factor)*
 using Term = Seq<Eval<Factor>, Repeated<Seq<MultiplicativeOp, Eval<Factor>>>>;

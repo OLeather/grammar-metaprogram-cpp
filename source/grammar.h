@@ -43,8 +43,8 @@ template <typename TargetRule> struct Eval {
   using Target = TargetRule;
 };
 
-template <typename Condition, typename Action> struct Conditional {
-  using IsConditional = void;
+template <typename Condition> struct Optional {
+  using IsOptional = void;
 };
 
 struct EndOfFile {
@@ -78,9 +78,9 @@ template <typename Rule> struct ReturnTypeOf<Repeated<Rule>> {
   using type = std::vector<typename ReturnTypeOf<Rule>::type>;
 };
 
-template <typename Condition, typename Action>
-struct ReturnTypeOf<Conditional<Condition, Action>> {
-  using type = std::optional<typename ReturnTypeOf<Action>::type>;
+template <typename Condition>
+struct ReturnTypeOf<Optional<Condition>> {
+  using type = std::optional<typename ReturnTypeOf<Condition>::type>;
 };
 
 template <> struct ReturnTypeOf<EndOfFile> {
@@ -210,13 +210,13 @@ template <typename Rule> struct Matcher<Repeated<Rule>> {
   }
 };
 
-template <typename Condition, typename Action>
-struct Matcher<Conditional<Condition, Action>> {
-  using OptType = typename ReturnTypeOf<Conditional<Condition, Action>>::type;
+template <typename Condition>
+struct Matcher<Optional<Condition>> {
+  using OptType = typename ReturnTypeOf<Optional<Condition>>::type;
 
   static std::optional<Result<OptType>> Match(Context ctx) {
     if (auto cond_res = Matcher<Condition>::Match(ctx)) {
-      if (auto action_res = Matcher<Action>::Match(ctx)) {
+      if (auto action_res = Matcher<Condition>::Match(ctx)) {
         return Result<OptType>{
             .ctx = action_res->ctx,
             .value = OptType(std::move(action_res->value))
