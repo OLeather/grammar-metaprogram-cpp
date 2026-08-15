@@ -7,8 +7,8 @@ using namespace example::calculator::syntax;
 using namespace example::calculator::bindings;
 
 int main() {
-  const std::string input = "4.3 + (7 + 3.4^5) * 6 / 4.2";
-  const auto actual_value = 4.3 + (7 + std::pow(3.4,5)) * 6 / 4.2;
+  const std::string input = "4.3 + (7 + 3.4^(5 - 3)) * 6 / 4.2";
+  const auto actual_value = 4.3 + (7 + std::pow(3.4,5-3)) * 6 / 4.2;
 
   const language::Context ctx{.input = input};
   const auto result = Matcher<Calculation>::Match(ctx);

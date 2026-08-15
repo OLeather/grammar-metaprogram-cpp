@@ -34,7 +34,7 @@ using RParen = std::tuple<Regex<"\\)">, Spacing>;
 using Primary = std::variant<std::tuple<LParen, wrap<Expression>, RParen>, Number>;
 
 // Factor <- Primary ('^' Factor)?
-using ExpFactor = std::tuple<ExponentialOp, Number>;
+using ExpFactor = std::tuple<ExponentialOp, wrap<Factor>>;
 struct Factor : Def<std::tuple<Primary, std::optional<ExpFactor>>> {};
 
 // Term <- Factor (MultiplicativeOp Factor)*
