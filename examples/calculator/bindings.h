@@ -12,10 +12,10 @@ struct NumberVisitor {
 struct OpVisitor {
   double a;
   double b;
-  double operator()(const Plus) { return a + b; }
-  double operator()(const Minus) { return a - b; }
-  double operator()(const Star) { return a * b; }
-  double operator()(const Slash) { return a / b; }
+  double operator()(const Plus&) { return a + b; }
+  double operator()(const Minus&) { return a - b; }
+  double operator()(const Star&) { return a * b; }
+  double operator()(const Slash&) { return a / b; }
 };
 
 template <typename T>
