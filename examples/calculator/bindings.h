@@ -58,16 +58,14 @@ struct Bindings {
 
   double operator()(const ExpFactor &e) { return Bindings{}(std::get<1>(e)); }
 
-  double operator()(const Primary &p) {
-    struct PrimaryVisitor {
-      double operator()(const std::variant_alternative_t<0, Primary> &t) {
-        return Bindings{}(std::get<1>(t));
-      }
-      double operator()(const std::variant_alternative_t<1, Primary> &n) {
-        return std::visit(NumberVisitor{}, std::get<0>(n));
-      }
-    };
-    return std::visit(PrimaryVisitor{}, p);
+  double operator()(const Primary &p) { return std::visit(Bindings{}, p); }
+
+  double operator()(const std::variant_alternative_t<0, Primary> &t) {
+    return Bindings{}(std::get<1>(t));
+  }
+
+  double operator()(const std::variant_alternative_t<1, Primary> &n) {
+    return std::visit(NumberVisitor{}, std::get<0>(n));
   }
 };
 } // namespace example::calculator::bindings
