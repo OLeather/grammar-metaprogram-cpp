@@ -10,7 +10,7 @@ void PrintIndent(const size_t &indent) {
   };
 }
 
-bool is_whitespace_only(const std::string &str) {
+bool IsWhitespaceOnly(const std::string &str) {
   return std::all_of(str.begin(), str.end(),
                      [](unsigned char ch) { return std::isspace(ch); });
 }
@@ -42,7 +42,7 @@ struct NodePrinter {
   }
 
   template <FixedString Str> void operator()(const Regex<Str> &r) {
-    if (is_whitespace_only(r.match)) {
+    if (IsWhitespaceOnly(r.match)) {
       return;
     }
 
