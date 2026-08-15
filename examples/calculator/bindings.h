@@ -5,28 +5,23 @@ namespace example::calculator::bindings {
 using namespace example::calculator::syntax;
 
 struct NumberVisitor {
-  double operator()(const Matcher<Float>::ReturnType &f) {
-    return std::stod(f.match);
-  }
-  double operator()(const Matcher<Integer>::ReturnType &i) {
-    return std::stoi(i.match);
-  }
+  double operator()(const Float &f) { return std::stod(f.match); }
+  double operator()(const Integer &i) { return std::stoi(i.match); }
 };
 
 struct Bindings {
-  double operator()(const Matcher<Calculation>::TupleType &c) {
+  double operator()(const Calculation &c) {
     const auto expr_eval = std::get<1>(c);
     return Bindings{}(expr_eval);
   }
 
-  double operator()(const Matcher<Eval<Expression>>::ReturnType &e) {
+  double operator()(const boost::recursive_wrapper<Expression> &e) {
     const auto expr = e.get().value;
     const auto left = std::get<0>(expr);
     const auto right_vec = std::get<1>(expr);
     double sum = Bindings{}(left);
     for (const auto &r : right_vec) {
-      const bool plus =
-          std::holds_alternative<Matcher<Plus>::TupleType>(std::get<0>(r));
+      const bool plus = std::holds_alternative<Plus>(std::get<0>(r));
       const double val = Bindings{}(std::get<1>(r));
       if (plus)
         sum += val;
@@ -36,13 +31,12 @@ struct Bindings {
     return sum;
   }
 
-  double operator()(const Matcher<Term>::TupleType &t) {
+  double operator()(const Term &t) {
     const auto left = std::get<0>(t);
     const auto right_vec = std::get<1>(t);
     double sum = Bindings{}(left);
     for (const auto &r : right_vec) {
-      const bool mult =
-          std::holds_alternative<Matcher<Star>::TupleType>(std::get<0>(r));
+      const bool mult = std::holds_alternative<Star>(std::get<0>(r));
       const double val = Bindings{}(std::get<1>(r));
       if (mult)
         sum *= val;
@@ -52,7 +46,7 @@ struct Bindings {
     return sum;
   }
 
-  double operator()(const Matcher<Eval<Factor>>::ReturnType &f) {
+  double operator()(const boost::recursive_wrapper<Factor> &f) {
     const auto factor = f.get().value;
     const auto left = std::get<0>(factor);
     const auto exponent_opt = std::get<1>(factor);
@@ -63,17 +57,14 @@ struct Bindings {
     return res;
   }
 
-  double operator()(const Matcher<ExpFactor>::TupleType &e) {
-    return Bindings{}(std::get<1>(e));
-  }
+  double operator()(const ExpFactor &e) { return Bindings{}(std::get<1>(e)); }
 
-  double operator()(const Matcher<Primary>::VariantType &p) {
+  double operator()(const Primary &p) {
     struct PrimaryVisitor {
-      double operator()(
-          const Matcher<Seq<LParen, Eval<Expression>, RParen>>::TupleType &t) {
+      double operator()(const std::variant_alternative_t<0, Primary> &t) {
         return Bindings{}(std::get<1>(t));
       }
-      double operator()(const Matcher<Number>::TupleType &n) {
+      double operator()(const std::variant_alternative_t<1, Primary> &n) {
         return std::visit(NumberVisitor{}, std::get<0>(n));
       }
     };

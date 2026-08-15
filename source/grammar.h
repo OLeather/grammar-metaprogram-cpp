@@ -28,25 +28,6 @@ template <FixedString Pattern> struct Regex {
   Regex(const std::string &match) : match(match) {};
 };
 
-template <typename... Rules> struct Or {
-  using IsOr = void;
-};
-template <typename... Rules> struct Seq {
-  using IsSeq = void;
-};
-
-template <typename Rule> struct Repeated {
-  using IsRepeated = void;
-};
-
-template <typename TargetRule> struct Eval {
-  using Target = TargetRule;
-};
-
-template <typename Condition> struct Optional {
-  using IsOptional = void;
-};
-
 template <typename Condition, typename Action> struct Conditional {
   using IsConditional = void;
 };
@@ -66,15 +47,15 @@ Return Types
 template <typename Rule> struct ReturnTypeOf;
 
 // TODO (owen): Remove duplicates in the variant
-template <typename... Rules> struct ReturnTypeOf<Or<Rules...>> {
+template <typename... Rules> struct ReturnTypeOf<std::variant<Rules...>> {
   using type = std::variant<typename ReturnTypeOf<Rules>::type...>;
 };
 
-template <typename... Rules> struct ReturnTypeOf<Seq<Rules...>> {
+template <typename... Rules> struct ReturnTypeOf<std::tuple<Rules...>> {
   using type = std::tuple<typename ReturnTypeOf<Rules>::type...>;
 };
 
-template <typename TargetRule> struct ReturnTypeOf<Eval<TargetRule>> {
+template <typename TargetRule> struct ReturnTypeOf<boost::recursive_wrapper<TargetRule>> {
   using type = boost::recursive_wrapper<TargetRule>;
 };
 
@@ -82,11 +63,11 @@ template <FixedString Pattern> struct ReturnTypeOf<Regex<Pattern>> {
   using type = Regex<Pattern>;
 };
 
-template <typename Rule> struct ReturnTypeOf<Repeated<Rule>> {
+template <typename Rule> struct ReturnTypeOf<std::vector<Rule>> {
   using type = std::vector<typename ReturnTypeOf<Rule>::type>;
 };
 
-template <typename Condition> struct ReturnTypeOf<Optional<Condition>> {
+template <typename Condition> struct ReturnTypeOf<std::optional<Condition>> {
   using type = std::optional<typename ReturnTypeOf<Condition>::type>;
 };
 
@@ -100,7 +81,7 @@ template <typename Rule> struct ReturnTypeOf<Not<Rule>> {
 };
 
 template <> struct ReturnTypeOf<EndOfFile> {
-  using type = std::monostate;
+  using type = EndOfFile;
 };
 
 /*
@@ -129,8 +110,8 @@ template <FixedString Pattern> struct Matcher<Regex<Pattern>> {
   }
 };
 
-template <typename Head> struct Matcher<Or<Head>> {
-  using VariantType = typename ReturnTypeOf<Or<Head>>::type;
+template <typename Head> struct Matcher<std::variant<Head>> {
+  using VariantType = typename ReturnTypeOf<std::variant<Head>>::type;
 
   static std::optional<Result<VariantType>> Match(Context ctx) {
     if (auto res = Matcher<Head>::Match(ctx)) {
@@ -141,8 +122,8 @@ template <typename Head> struct Matcher<Or<Head>> {
   }
 };
 
-template <typename Head, typename... Tail> struct Matcher<Or<Head, Tail...>> {
-  using VariantType = typename ReturnTypeOf<Or<Head, Tail...>>::type;
+template <typename Head, typename... Tail> struct Matcher<std::variant<Head, Tail...>> {
+  using VariantType = typename ReturnTypeOf<std::variant<Head, Tail...>>::type;
 
   static std::optional<Result<VariantType>> Match(Context ctx) {
     auto head = Matcher<Head>::Match(ctx);
@@ -152,7 +133,7 @@ template <typename Head, typename... Tail> struct Matcher<Or<Head, Tail...>> {
     }
 
     if constexpr (sizeof...(Tail) > 0) {
-      auto tail = Matcher<Or<Tail...>>::Match(ctx);
+      auto tail = Matcher<std::variant<Tail...>>::Match(ctx);
       if (tail) {
         VariantType parent_variant = std::visit(
             [](auto &&val) -> VariantType {
@@ -169,8 +150,8 @@ template <typename Head, typename... Tail> struct Matcher<Or<Head, Tail...>> {
   }
 };
 
-template <typename Head, typename... Tail> struct Matcher<Seq<Head, Tail...>> {
-  using TupleType = typename ReturnTypeOf<Seq<Head, Tail...>>::type;
+template <typename Head, typename... Tail> struct Matcher<std::tuple<Head, Tail...>> {
+  using TupleType = typename ReturnTypeOf<std::tuple<Head, Tail...>>::type;
 
   static std::optional<Result<TupleType>> Match(Context ctx) {
     auto head_res = Matcher<Head>::Match(ctx);
@@ -182,7 +163,7 @@ template <typename Head, typename... Tail> struct Matcher<Seq<Head, Tail...>> {
                                .value =
                                    std::make_tuple(std::move(head_res->value))};
     } else {
-      auto tail_res = Matcher<Seq<Tail...>>::Match(head_res->ctx);
+      auto tail_res = Matcher<std::tuple<Tail...>>::Match(head_res->ctx);
       if (!tail_res)
         return std::nullopt;
 
@@ -194,7 +175,7 @@ template <typename Head, typename... Tail> struct Matcher<Seq<Head, Tail...>> {
   }
 };
 
-template <typename Target> struct Matcher<Eval<Target>> {
+template <typename Target> struct Matcher<boost::recursive_wrapper<Target>> {
   using ReturnType = boost::recursive_wrapper<Target>;
 
   static std::optional<Result<ReturnType>> Match(Context ctx) {
@@ -207,8 +188,8 @@ template <typename Target> struct Matcher<Eval<Target>> {
   }
 };
 
-template <typename Rule> struct Matcher<Repeated<Rule>> {
-  using VecType = typename ReturnTypeOf<Repeated<Rule>>::type;
+template <typename Rule> struct Matcher<std::vector<Rule>> {
+  using VecType = typename ReturnTypeOf<std::vector<Rule>>::type;
 
   static std::optional<Result<VecType>> Match(Context ctx) {
     Context current = ctx;
@@ -227,7 +208,7 @@ template <typename Rule> struct Matcher<Repeated<Rule>> {
 
 template <typename Condition, typename Action>
 struct Matcher<Conditional<Condition, Action>> {
-  using OptType = typename ReturnTypeOf<Optional<Action>>::type;
+  using OptType = typename ReturnTypeOf<std::optional<Action>>::type;
 
   static std::optional<Result<OptType>> Match(Context ctx) {
     if (auto cond_res = Matcher<Condition>::Match(ctx)) {
@@ -243,7 +224,7 @@ struct Matcher<Conditional<Condition, Action>> {
 };
 
 template <typename Condition>
-struct Matcher<Optional<Condition>>
+struct Matcher<std::optional<Condition>>
     : Matcher<Conditional<Condition, Condition>> {};
 
 template <typename Rule> struct Matcher<Not<Rule>> {
@@ -258,9 +239,9 @@ template <typename Rule> struct Matcher<Not<Rule>> {
 };
 
 template <> struct Matcher<EndOfFile> {
-  static std::optional<Result<std::monostate>> Match(Context ctx) {
+  static std::optional<Result<EndOfFile>> Match(Context ctx) {
     if (ctx.input.empty()) {
-      return Result<std::monostate>{.ctx = ctx, .value = std::monostate{}};
+      return Result<EndOfFile>{.ctx = ctx, .value = EndOfFile{}};
     }
     return std::nullopt;
   }
