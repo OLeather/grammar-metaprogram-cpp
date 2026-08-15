@@ -9,6 +9,19 @@ struct NumberVisitor {
   double operator()(const Integer &i) { return std::stoi(i.match); }
 };
 
+struct OpVisitor {
+  double a;
+  double b;
+  double operator()(const Plus) { return a + b; }
+  double operator()(const Minus) { return a - b; }
+  double operator()(const Star) { return a * b; }
+  double operator()(const Slash) { return a / b; }
+};
+
+template <typename T>
+concept ExpressionOrTerm =
+    std::is_same_v<T, Expression::Grammar> || std::is_same_v<T, Term>;
+
 struct Bindings {
   double operator()(const Calculation &c) {
     const auto expr_eval = std::get<1>(c);
@@ -16,43 +29,28 @@ struct Bindings {
   }
 
   double operator()(const boost::recursive_wrapper<Expression> &e) {
-    const auto expr = e.get().value;
-    const auto left = std::get<0>(expr);
-    const auto right_vec = std::get<1>(expr);
-    double sum = Bindings{}(left);
-    for (const auto &r : right_vec) {
-      const bool plus = std::holds_alternative<Plus>(std::get<0>(r));
-      const double val = Bindings{}(std::get<1>(r));
-      if (plus)
-        sum += val;
-      else
-        sum -= val;
-    }
-    return sum;
+    return Bindings{}(e.get().value);
   }
 
-  double operator()(const Term &t) {
-    const auto left = std::get<0>(t);
-    const auto right_vec = std::get<1>(t);
-    double sum = Bindings{}(left);
-    for (const auto &r : right_vec) {
-      const bool mult = std::holds_alternative<Star>(std::get<0>(r));
-      const double val = Bindings{}(std::get<1>(r));
-      if (mult)
-        sum *= val;
-      else
-        sum /= val;
+  double operator()(const ExpressionOrTerm auto &node) {
+    const auto &[left, right_vec] = node;
+    double res = (*this)(left);
+    for (const auto &[op, right] : right_vec) {
+      const double val = Bindings{}(right);
+      res = std::visit(OpVisitor{res, val}, op);
     }
-    return sum;
+    return res;
   }
 
   double operator()(const boost::recursive_wrapper<Factor> &f) {
-    const auto factor = f.get().value;
-    const auto left = std::get<0>(factor);
-    const auto exponent_opt = std::get<1>(factor);
+    return (*this)(f.get().value);
+  }
+
+  double operator()(const Factor::Grammar &f) {
+    const auto &[left, maybe_exponent] = f;
     double res = Bindings{}(left);
-    if (exponent_opt) {
-      res = std::pow(res, Bindings{}(std::get<1>(exponent_opt.value())));
+    if (maybe_exponent.has_value()) {
+      res = std::pow(res, Bindings{}(std::get<1>(maybe_exponent.value())));
     }
     return res;
   }
