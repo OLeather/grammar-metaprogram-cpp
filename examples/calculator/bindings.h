@@ -28,10 +28,6 @@ struct Bindings {
     return Bindings{}(expr_eval);
   }
 
-  double operator()(const boost::recursive_wrapper<Expression> &e) {
-    return Bindings{}(e.get().value);
-  }
-
   double operator()(const ExpressionOrTerm auto &node) {
     const auto &[left, right_vec] = node;
     double res = (*this)(left);
@@ -40,10 +36,6 @@ struct Bindings {
       res = std::visit(OpVisitor{res, val}, op);
     }
     return res;
-  }
-
-  double operator()(const boost::recursive_wrapper<Factor> &f) {
-    return (*this)(f.get().value);
   }
 
   double operator()(const Factor::Grammar &f) {
@@ -66,6 +58,11 @@ struct Bindings {
 
   double operator()(const std::variant_alternative_t<1, Primary> &n) {
     return std::visit(NumberVisitor{}, std::get<0>(n));
+  }
+
+  template <typename T>
+  double operator()(const boost::recursive_wrapper<T> &f) {
+    return Bindings{}(f.get().value);
   }
 };
 } // namespace example::calculator::bindings
